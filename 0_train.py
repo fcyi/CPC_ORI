@@ -24,7 +24,7 @@ def train(config, data_loader, save_weights=True):
     # Instantiate model
     encoder = Model(config)
     # Start the clock to measure the training time
-    start = time.process_time()
+    start = time.process_time()  # 返回当前进程的CPU时间，以浮点数的形式表示。它返回的值是相对于某个特定时间点的累计CPU时间，而不是实际的墙钟时间。
     # Fit the model to the data
     encoder.fit(data_loader)
     # Total time spent on training
@@ -54,11 +54,11 @@ def main(config):
 
 if __name__ == "__main__":
     # Get parser / command line arguments
-    args = get_arguments()
+    args = get_arguments()  # 加载超参数
     # Get configuration file
-    config = get_config(args)
+    config = get_config(args)  # 根据配置文件构建配置字典
     # Summarize config and arguments on the screen as a sanity check
-    print_config_summary(config, args)
+    print_config_summary(config, args)  # 参数打印
     # --If True, start of MLFlow for experiment tracking:
     if config["mlflow"]:
         # Experiment name

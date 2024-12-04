@@ -16,7 +16,7 @@ from utils.utils import set_seed
 from utils.loss_functions import cpc_loss
 from utils.model_plot import save_loss_plot
 from utils.model_utils import CPC
-th.autograd.set_detect_anomaly(True)
+th.autograd.set_detect_anomaly(True)  # 正向传播时：开启自动求导的异常侦测
 
 
 class Model:
@@ -87,7 +87,7 @@ class Model:
         bs = self.options["batch_size"]
         # Compute total number of batches per epoch
         self.total_batches = len(train_loader)
-        print(f"Total number of samples / batches in training set: {len(train_loader.dataset)} / {len(train_loader)}")
+        print(f"Total number of samples / batches in training set: {len(train_loader.dataset)} / {self.total_batches}")
         # Start training
         for epoch in range(self.options["epochs"]):
             # Attach progress bar to data_loader to check it during training. "leave=True" gives a new line per epoch
@@ -110,6 +110,8 @@ class Model:
                 # Update the parameters of online network as well as predictor
                 self.update_model(cpc_loss, self.optimizer_cpc, retain_graph=True)
                 # Clean-up for efficient memory use.
+                # gc.collect() 是一个用于手动触发的垃圾回收机制的方法，主要用于强制回收那些无法访问的对象所占用的内存。‌
+                # 在Python中，gc.collect()命令通过“标记-清除”和“分代回收”算法来处理循环引用和长期存活的对象的内存管理。
                 del cpc_loss, accuracy, encoder_samples, predictions, hidden
                 gc.collect()
                 # Update log message using epoch and batch numbers
@@ -123,8 +125,20 @@ class Model:
         # Save plot of training and validation losses
         save_loss_plot(self.loss, self._plots_path)
         # Convert loss dictionary to a dataframe
+        # 构建一个字典，字典元素有接收的列表中的元素(k, pd.Series(v))组成，
+        # 即k: pd.Series(v)。
+        # pandas.Series是Pandas库中的一个基本数据结构，类似于一维数组，但带有索引标签。
+        # 它主要用于处理和分析数据，具有高效的数据操作能力。‌
+        # pandas.Series可以通过pd.Series()构造函数创建，该函数接受多个参数，
+        # 包括数据（data）、索引（index）、数据类型（dtype）等。
+        # 如果不提供这些参数，则会创建一个空的或默认索引的Series对象。
+        # 再通过pd.DataFrame根据字典创建dataframe，
+        # 这要求字典中的值都是一个列表，且这些值列表的长度相同，
+        # 之后在将其转为表格的形式，即键为标签，值列表则表示不同的标签值
+        # 从而方便将这些数据记录到csv表格
         loss_df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in self.loss.items()]))
         # Save loss dataframe as csv file for later use
+        # .to_csv()用于将DataFrame对象保存为CSV文件
         loss_df.to_csv(self._loss_path + "/losses.csv")
 
     def set_params(self):
@@ -168,6 +182,7 @@ class Model:
 
     def get_validation_batch(self, data_loader):
         """Wrapper to get validation set. In this case, it uses only the first batch to save from computation time"""
+        # 从测试数据加载器中加载并处理一批数据后，将其返回
         # Validation dataset
         validation_loader = data_loader.test_loader
         # Use only the first batch of validation set to save from computation
@@ -245,24 +260,32 @@ class Model:
 
     def set_scheduler(self):
         # Set scheduler (Its use will be optional)
+        # PyTorch 中的一个学习率调度器，它可以在训练过程中按照一定的策略逐渐降低学习率
+        # 将创建的优化器（optimizer）作为参数传入，并指定降低学习率的策略。
+        # optimizer：一个 PyTorch 优化器对象，如 torch.optim.SGD、torch.optim.Adam 等。
+        # step_size：降低学习率的间隔步数，即经过多少个迭代步骤后降低学习率。
+        # gamma：学习率降低的倍数，即学习率每次降低后的缩放比例。
         self.scheduler = th.optim.lr_scheduler.StepLR(self.optimizer_cpc, step_size=2, gamma=0.99)
 
     def set_paths(self):
         """ Sets paths to bse used for saving results at the end of the training"""
         # Top results directory
-        self._results_path = self.options["paths"]["results"]
+        self._results_path = self.options["paths"]["resDir"]
         # Directory to save model
-        self._model_path = os.path.join(self._results_path, "training", self.options["model_mode"], "model")
+        self._model_path = os.path.join(self._results_path, "training", "model")
         # Directory to save plots as png files
-        self._plots_path = os.path.join(self._results_path, "training", self.options["model_mode"], "plots")
+        self._plots_path = os.path.join(self._results_path, "training", "plots")
         # Directory to save losses as csv file
-        self._loss_path = os.path.join(self._results_path, "training", self.options["model_mode"], "loss")
+        self._loss_path = os.path.join(self._results_path, "training", "loss")
 
     def _adam(self):
         """Wrapper for setting up Adam optimizer"""
         # Collect params
         params = [self.cpc.parameters()]
         # Return optimizer
+        # itertools.chain()将传入的多个可迭代对象（params是一个或多个可迭代对象，可以是列表、元组、字符串、生成器等。）按顺序连接起来，
+        # 返回一个可迭代的链对象（按顺序包含了传入的所有可迭代对象的元素）。
+        # 在处理多个可迭代对象时非常有用，它可以避免创建临时列表，提高代码的效率和可读性
         return th.optim.Adam(itertools.chain(*params), lr=self.lr, betas=(0.9, 0.999))
 
     def _tensor(self, data):

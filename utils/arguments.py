@@ -29,12 +29,12 @@ def get_arguments():
     return parser.parse_args()
 
 def get_config(args):
-    # Get path to the root
-    root_path = dirname(abspath(__file__))
-    # Get path to the runtime config file
-    config = os.path.join(root_path, "config", "runtime.yaml")
+    # # Get path to the root
+    # root_path = dirname(abspath(__file__))
+    # # Get path to the runtime config file
+    # config = os.path.join(root_path, "config", "runtime.yaml")
     # Load runtime config from config folder: ./config/
-    config = get_runtime_and_model_config()
+    config = get_runtime_and_model_config()  # 根据配置文件构建配置字典
     # Copy models argument to config to use later
     config["dataset"] = args.dataset
     # Copy image size argument to config to use later

@@ -8,71 +8,79 @@ Description: Utility functions
 
 import os
 import sys
+
+import torch
 import yaml
 import numpy as np
-from numpy.random import seed
 import random as python_random
 
 
 def set_seed(options):
-    seed(options["seed"])
     np.random.seed(options["seed"])
     python_random.seed(options["seed"])
+    torch.manual_seed(options["seed"])
 
 def create_dir(dir_path):
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
 
 
+def get_next_model_folder(prefix, path = ''):
+    model_folder = lambda prefix, run_idx: f"{prefix}_model_run_{run_idx}"
+
+    # 在path下连续创建以prefix作为前缀的文件夹
+    run_idx = 0
+    while os.path.isdir(os.path.join(path, model_folder(prefix, run_idx))):
+        run_idx += 1
+
+    model_path = os.path.join(path, model_folder(prefix, run_idx))
+    print(f"STARTING {prefix} RUN {run_idx}! Storing the models at {model_path}")
+
+    return model_path
+
+
 def set_dirs(config):
     """
     It sets up directory that will be used to save results.
     Directory structure:
-          results -> evaluation
-                  -> training -> model_mode -> loss
-                                            -> model
-                                            -> plots
+          results -> model_mode_{} -> evaluation
+                                   -> training -> loss
+                                               -> model
+                                               -> plots
     :return: None
     """
     # Update the config file with model config and flatten runtime config
-    config = update_config_with_model(config)
+    config = update_config_with_model(config)  # !!! 这一步其实已经可以关掉，因为在之前构建配置字典时已经运行过
     # Set main results directory using database name. Exp:  processed_data/dpp19
     paths = config["paths"]
     # data > processed_data
     processed_data_dir = os.path.join(paths["data"], "processed_data")
-    # results > training
-    training_dir = os.path.join(paths["results"], "training")
-    # results > evaluation
-    evaluation_dir = os.path.join(paths["results"], "evaluation")
-    # results > training > model_mode = vae
-    model_mode_dir = os.path.join(training_dir, config["model_mode"])
-    # results > training > model_mode > model
-    training_model_dir = os.path.join(model_mode_dir, "model")
-    # results > training > model_mode > plots
-    training_plot_dir = os.path.join(model_mode_dir, "plots")
-    # results > training > model_mode > loss
-    training_loss_dir = os.path.join(model_mode_dir, "loss")
+    # results > prefix_{}
+    res_dir = get_next_model_folder(config["model_mode"], paths['results'])
+    # results > prefix_{} > training
+    training_dir = os.path.join(res_dir, "training")
+    # results > prefix_{} > evaluation
+    evaluation_dir = os.path.join(res_dir, "evaluation")
+    # results > prefix_{} > training > model
+    training_model_dir = os.path.join(training_dir, "model")
+    # results > prefix_{} > training > plots
+    training_plot_dir = os.path.join(training_dir, "plots")
+    # results > prefix_{} > training > loss
+    training_loss_dir = os.path.join(training_dir, "loss")
     # Create any missing directories
-    if not os.path.exists(processed_data_dir):
-        os.makedirs(processed_data_dir)
-    if not os.path.exists(training_model_dir):
-        os.makedirs(training_model_dir)
-    if not os.path.exists(evaluation_dir):
-        os.makedirs(evaluation_dir)
-    if not os.path.exists(model_mode_dir):
-        os.makedirs(model_mode_dir)
-    if not os.path.exists(training_model_dir):
-        os.makedirs(training_model_dir)
-    if not os.path.exists(training_plot_dir):
-        os.makedirs(training_plot_dir)
-    if not os.path.exists(training_loss_dir):
-        os.makedirs(training_loss_dir)
+    create_dir(processed_data_dir)
+    create_dir(evaluation_dir)
+    create_dir(training_dir)
+    create_dir(training_model_dir)
+    create_dir(training_plot_dir)
+    create_dir(training_loss_dir)
     # Print a message.
+    config['paths'].update({'resDir': res_dir})
     print("Directories are set.")
 
 
-
 def get_runtime_and_model_config():
+    # 加载运行和模型配置文件，并以字典形式存储
     try:
         with open("./config/runtime.yaml", "r") as file:
             config = yaml.safe_load(file)
@@ -84,6 +92,7 @@ def get_runtime_and_model_config():
 
 
 def update_config_with_model(config):
+    # 从运行配置中根据无监督学习方式加载模型配置，并将这些配置信息存入配置信息字典中
     model_config = config["unsupervised"]["model_mode"]
     try:
         with open("./config/"+model_config+".yaml", "r") as file:
@@ -93,6 +102,7 @@ def update_config_with_model(config):
     config.update(model_config)
     # TODO: Clean up structure of configs
     # Add sub-category "unsupervised" as a flat hierarchy to the config:
+    # 为了方便调用，将无监督学习的运行信息再次存放到配置字典中（其实就是简化检索过程）
     config.update(config["unsupervised"])
     return config
 

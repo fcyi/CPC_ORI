@@ -1,7 +1,7 @@
 seed: 42                                  # Define the random seed for consistent results.
 mlflow: false                             # Switch to turn on/off mlflow for experiment tracking.
 paths:                                    #
-    data: ./data/                         # Where the data is stored.
+    data: ../../dataset/                  # Where the data is stored.
     results: ./results/                   # Where the results such as trained model, and plots will be saved.
 unsupervised:                             #
     model_mode: cpc                      # If there are multiple models, define which one to use.

@@ -5,12 +5,16 @@ Email: ucabtuc@gmail.com
 Version: 0.1
 """
 
+import sys
+sys.path.append('../utils')
+
 import os
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 import numpy as np
 import soundfile as sf
 from torch.utils import data as datautil
+from .utils import create_dir
 
 
 class AudioLoader(object):
@@ -26,8 +30,7 @@ class AudioLoader(object):
         # data > dataset_name
         file_path = os.path.join(paths["data"], dataset_name.lower())
         # Create the directory if it is missing
-        if not os.path.exists(file_path):
-            os.makedirs(file_path)
+        create_dir(file_path)
         # Get the datasets
         train_dataset, test_dataset = self.get_dataset(file_path)
         # Get batch size.
@@ -46,7 +49,9 @@ class AudioLoader(object):
 
 
 class RawDataset(datautil.Dataset):
-
+    """
+    用于封装语音数据，目前仅支持LibrisSpeech (train-clean-100)
+    """
     def __init__(self, directory, audio_window):
 
         self.audio_window = audio_window
@@ -59,6 +64,9 @@ class RawDataset(datautil.Dataset):
                 if '.flac' in file:
                     self.files.append(os.path.join(r, file))
 
+        self.files = sorted(self.files)
+        # 此处之所以要构建语音文件以及对应索引之间的字典是映射，是为了便于扰动、打乱数据。
+        # 显然，打乱索引比打乱字符串要简单
         for idx, filepath in enumerate(self.files):
             self.idx2file[idx] = filepath
 
@@ -68,8 +76,13 @@ class RawDataset(datautil.Dataset):
 
     def __getitem__(self, index):
         filepath = self.idx2file[index]
+        # soundfile.read()只能读 .wav 格式, 读 .mp3 会报错
+        # 默认 dtype = 'float64'，输出为 (-1, 1) 之间的数据 (做了 32768 归一化)；
+        # 修改为 dtype = 'int16'，输出为 (-2**15, 2**15-1) 之间；
+        # 保留原始采样频率（即函数返回的samplerate，单位为hz）。
         audiodata, samplerate = sf.read(filepath)
-        utt_len = audiodata.shape[0]
+        utt_len = audiodata.shape[0]  # 获取读取到的语音数据的长度
+        # 也就是从读取到的语音数据中随机截取一段（相应长度为self.audio_window）
         # get the index to read part of the utterance into memory
         index = np.random.randint(utt_len - self.audio_window + 1)
         return audiodata[index:index + self.audio_window]
